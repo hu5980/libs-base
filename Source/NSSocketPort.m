@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
    */
 
 #import "common.h"
@@ -1469,7 +1469,7 @@ static Class		tcpPortClass;
  * Look up an existing NSSocketPort given a host and number
  */
 + (NSSocketPort*) existingPortWithNumber: (uint16_t)number
-			       onHost: (NSHost*)aHost
+                                  onHost: (NSHost*)aHost
 {
   NSSocketPort	*port = nil;
   NSMapTable	*thePorts;
@@ -1763,6 +1763,9 @@ static Class		tcpPortClass;
 {
   NSDebugMLLog(@"NSPort",
     @"NSSocketPort 0x%"PRIxPTR" finalized", (NSUInteger)self);
+  M_LOCK(tcpPortLock);
+  NSMapRemove(tcpPortMap, (void*)(uintptr_t)portNum);
+  M_UNLOCK(tcpPortLock);
   [self invalidate];
   if (handles != 0)
     {

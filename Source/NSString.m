@@ -20,12 +20,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
 
    <title>NSString class reference</title>
    $Date$ $Revision$
@@ -67,6 +67,7 @@
 #import "Foundation/NSLocale.h"
 #import "Foundation/NSLock.h"
 #import "Foundation/NSNotification.h"
+#import "Foundation/NSScanner.h"
 #import "Foundation/NSUserDefaults.h"
 #import "Foundation/FoundationErrors.h"
 // For private method _decodePropertyListForKey:
@@ -127,7 +128,9 @@ uni_tolower(unichar ch)
 
 #import "GNUstepBase/Unicode.h"
 
-extern BOOL GSScanDouble(unichar*, unsigned, double*);
+@interface	NSScanner (Double)
++ (BOOL) _scanDouble: (double*)value from: (NSString*)str;
+@end
 
 @class	GSString;
 @class	GSMutableString;
@@ -164,41 +167,42 @@ static BOOL                     (*nonBaseImp)(id, SEL, unichar) = 0;
  */
 #define	IMMUTABLE(S)	AUTORELEASE([(S) copyWithZone: NSDefaultMallocZone()])
 
-#define IS_BIT_SET(a,i) ((((a) & (1<<(i)))) > 0)
-
-static NSCharacterSet	*nonspace = nil;
-static NSData           *whitespaceBitmap;
-static unsigned const char *whitespaceBitmapRep = NULL;
-#define GS_IS_WHITESPACE(X) IS_BIT_SET(whitespaceBitmapRep[(X)/8], (X) % 8)
-
-static void setupNonspace(void)
+static inline BOOL  isWhiteSpace(unichar c)
 {
-  if (nil == nonspace)
-    {
-      NSCharacterSet *whitespace;
+  /* We can not use whitespaceAndNewlineCharacterSet here as this would lead
+   * to a recursion, as this also reads in a property list.
+   *
+   * Copied whitespace and newline index set from  NSCharacterSetData.h
+   */
+  static const NSRange whitespace[] = {{9,5},{32,1},{133,1},{160,1},{5760,1},{8192,12},{8232,2},{8239,1},{8287,1},{12288,1}};
+  unsigned	upper = sizeof(whitespace)/sizeof(*whitespace);
+  unsigned	lower = 0;
+  unsigned	pos;
+  NSRange	r;
 
-      whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
-      nonspace = [[whitespace invertedSet] retain];
+  /* Binary search for a range containing the character to be checked
+   */
+  for (pos = upper/2; upper != lower; pos = (upper+lower)/2)
+    {
+      r = whitespace[pos];
+      if (c < r.location)
+        {
+          upper = pos;
+        }
+      else if (c >= NSMaxRange(r))
+        {
+          lower = pos + 1;
+        }
+      else
+        {
+          break;
+        }
     }
+  return (c >= r.location && c < NSMaxRange(r)) ? YES : NO;
 }
 
-static void setupWhitespace(void)
-{
-  if (whitespaceBitmapRep == NULL)
-    {
-      NSCharacterSet *whitespace;
+#define GS_IS_WHITESPACE(X) isWhiteSpace(X)
 
-/*
-  We can not use whitespaceAndNewlineCharacterSet here as this would lead
-  to a recursion, as this also reads in a property list.
-      whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
-*/
-      whitespace = [NSCharacterSet characterSetWithCharactersInString:
-				    @" \t\r\n\f\b"];
-      whitespaceBitmap = RETAIN([whitespace bitmapRepresentation]);
-      whitespaceBitmapRep = [whitespaceBitmap bytes];
-    }
-}
 
 /* A non-spacing character is one which is part of a 'user-perceived character'
  * where the user perceived character consists of a base character followed
@@ -663,28 +667,43 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
     {
       return NULL;
     }
-  
-  if (locale == nil)
-    {
-      /* A nil locale should trigger POSIX collation (i.e. 'A'-'Z' sort
-       * before 'a'), and support for this was added in ICU 4.6 under the
-       * locale name en_US_POSIX, but it doesn't fit our requirements
-       * (e.g. 'e' and 'E' don't compare as equal with case insensitive
-       * comparison.) - so return NULL to indicate that the GNUstep
-       * comparison code should be used.
-       */
-      return NULL;
-    }
-  else
-    {
-      localeCString = [[locale localeIdentifier] UTF8String];
 
-      if (localeCString == NULL || strcmp("", localeCString) == 0)
-	{
-	  return NULL;
-	}
+  if (NO == [locale isKindOfClass: [NSLocale class]])
+    {
+      if (nil == locale)
+        {
+          /* See comments below about the posix locale.
+           * It's bad for case insensitive search, but needed for numeric
+           */
+          if (mask & NSNumericSearch)
+            {
+              locale = [NSLocale systemLocale];
+            }
+          else
+            {
+              /* A nil locale should trigger POSIX collation (i.e. 'A'-'Z' sort
+               * before 'a'), and support for this was added in ICU 4.6 under the
+               * locale name en_US_POSIX, but it doesn't fit our requirements
+               * (e.g. 'e' and 'E' don't compare as equal with case insensitive
+               * comparison.) - so return NULL to indicate that the GNUstep
+               * comparison code should be used.
+               */
+              return NULL;
+            }
+        }
+      else
+        {
+          locale = [NSLocale currentLocale];
+        }
     }
-	  
+
+  localeCString = [[locale localeIdentifier] UTF8String];
+
+  if (localeCString != NULL && strcmp("", localeCString) == 0)
+    {
+      localeCString = NULL;
+    }
+
   coll = ucol_open(localeCString, &status);
 
   if (U_SUCCESS(status))
@@ -1886,6 +1905,112 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
     }
 }
 
+- (NSString *) stringByAddingPercentEncodingWithAllowedCharacters:
+  (NSCharacterSet *)aSet
+{
+  NSData	*data = [self dataUsingEncoding: NSUTF8StringEncoding];
+  NSString	*s = nil;
+
+  if (data != nil)
+    {
+      unsigned char	*src = (unsigned char*)[data bytes];
+      unsigned int	slen = [data length];
+      unsigned char	*dst;
+      unsigned int	spos = 0;
+      unsigned int	dpos = 0;
+
+      dst = (unsigned char*)NSZoneMalloc(NSDefaultMallocZone(), slen * 3);
+      while (spos < slen)
+	{
+	  unichar	c = src[spos++];
+	  unsigned int	hi;
+	  unsigned int	lo;
+
+	  /* If the character is in the allowed set *and* is in the
+	   * 7-bit ASCII range, it can be added unchanged.
+	   */
+	  if (c < 128 && [aSet characterIsMember: c])
+	    {
+	      dst[dpos++] = c;
+	    }
+	  else // if not, then encode it...
+	    {
+	      dst[dpos++] = '%';
+	      hi = (c & 0xf0) >> 4;
+	      dst[dpos++] = (hi > 9) ? 'A' + hi - 10 : '0' + hi;
+	      lo = (c & 0x0f);
+	      dst[dpos++] = (lo > 9) ? 'A' + lo - 10 : '0' + lo;
+	    }
+	}
+      s = [[NSString alloc] initWithBytes: dst
+				   length: dpos
+				 encoding: NSASCIIStringEncoding];
+      NSZoneFree(NSDefaultMallocZone(), dst);
+      IF_NO_GC([s autorelease];)
+    }
+  return s;
+}
+
+- (NSString *) stringByRemovingPercentEncoding
+{
+  NSData	*data = [self dataUsingEncoding: NSUTF8StringEncoding];
+  const uint8_t	*s = [data bytes];
+  NSUInteger	length = [data length]; 
+  NSUInteger	lastPercent = length - 3;
+  char		*o = (char *)NSZoneMalloc(NSDefaultMallocZone(), length + 1);
+  char		*next = o;
+  NSUInteger	index;
+  NSString	*result;
+
+  for (index = 0; index < length; index++)
+    {
+      char	c = s[index];
+
+      if ('%' == c && index <= lastPercent)
+	{
+	  uint8_t	hi = s[index+1];
+	  uint8_t	lo = s[index+2];
+
+	  if (isxdigit(hi) && isxdigit(lo))
+	    {
+	      index += 2;
+              if (hi <= '9')
+                {
+                  c = hi - '0';
+                }
+              else if (hi <= 'F')
+                {
+                  c = hi - 'A' + 10;
+                }
+              else
+                {
+                  c = hi - 'a' + 10;
+                }
+	      c <<= 4;
+              if (lo <= '9')
+                {
+                  c += lo - '0';
+                }
+              else if (lo <= 'F')
+                {
+                  c += lo - 'A' + 10;
+                }
+              else
+                {
+                  c += lo - 'a' + 10;
+                }
+	    }
+	}
+      *next++ = c;
+    }
+  *next = '\0';
+
+  result = [NSString stringWithUTF8String: o];
+  NSZoneFree(NSDefaultMallocZone(), o);
+  
+  return result; 
+}
+
 /**
  * Constructs a new ASCII string which is a representation of the receiver
  * in which characters are escaped where necessary in order to produce a
@@ -2702,10 +2827,6 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
     }
 
 #if GS_USE_ICU == 1
-  if (nil != locale && NO == [locale isKindOfClass: [NSLocale class]])
-    {
-      locale = [NSLocale currentLocale];
-    }
     {
       UCollator *coll = GSICUCollatorOpen(mask, locale);
 
@@ -2955,7 +3076,7 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
     {
       return YES;
     }
-  if ([self hash] != [aString hash])
+  if (nil == aString || [self hash] != [aString hash])
     {
       return NO;
     }
@@ -3387,8 +3508,6 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
 
   if (len == 0)
     return IMMUTABLE(self);
-  if (whitespaceBitmapRep == NULL)
-    setupWhitespace();
 
   s = NSZoneMalloc([self zone], sizeof(unichar)*len);
   [self getCharacters: s range: ((NSRange){0, len})];
@@ -3838,17 +3957,8 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
  */
 - (double) doubleValue
 {
-  unichar	buf[32];
   double	d = 0.0;
-  NSRange	r;
-
-  setupNonspace();
-  r = [self rangeOfCharacterFromSet: nonspace];
-  if (NSNotFound == r.location) return 0.0;
-  r.length = [self length] - r.location;
-  if (r.length > 32) r.length = 32;
-  [self getCharacters: buf range: r];
-  GSScanDouble(buf, r.length, &d);
+  [NSScanner _scanDouble: &d from: self];
   return d;
 }
 
@@ -3859,17 +3969,8 @@ GSICUCollatorOpen(NSStringCompareOptions mask, NSLocale *locale)
  */
 - (float) floatValue
 {
-  unichar	buf[32];
   double	d = 0.0;
-  NSRange	r;
-
-  setupNonspace();
-  r = [self rangeOfCharacterFromSet: nonspace];
-  if (NSNotFound == r.location) return 0.0;
-  r.length = [self length] - r.location;
-  if (r.length > 32) r.length = 32;
-  [self getCharacters: buf range: r];
-  GSScanDouble(buf, r.length, &d);
+  [NSScanner _scanDouble: &d from: self];
   return (float)d;
 }
 
@@ -5678,27 +5779,13 @@ static NSFileManager *fm = nil;
 			locale: (id)locale
 {
   GS_RANGE_CHECK(compareRange, [self length]);
-  if (string == nil)
-    [NSException raise: NSInvalidArgumentException format: @"compare with nil"];
+  if (nil == string)
+    {
+      [NSException raise: NSInvalidArgumentException
+		  format: @"compare with nil"];
+    }
 
 #if GS_USE_ICU == 1
-  if (NO == [locale isKindOfClass: [NSLocale class]])
-    {
-      if (nil == locale)
-        {
-          /* See comments in GSICUCollatorOpen about the posix locale.
-           * It's bad for case insensitive search, but needed for numeric    
-           */
-          if (mask & NSNumericSearch)
-            {
-              locale = [NSLocale systemLocale];
-            }
-        }
-      else
-        {
-          locale = [NSLocale currentLocale];
-        }
-    }
     {
       UCollator *coll = GSICUCollatorOpen(mask, locale);
 
@@ -6135,17 +6222,6 @@ static NSFileManager *fm = nil;
   extern id	GSPropertyListFromStringsFormat(NSString *string);
 
   return GSPropertyListFromStringsFormat(self);
-}
-
-- (NSUInteger) sizeInBytesExcluding: (NSHashTable*)exclude
-{
-  NSUInteger    size = [super sizeInBytesExcluding: exclude];
-
-  if (size > 0)
-    {
-      size += sizeof(unichar) * [self length];
-    }
-  return size;
 }
 
 /**

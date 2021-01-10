@@ -14,61 +14,9 @@ Missing macros:
 	NS_AVAILABLE_IOS
 
 Missing headers:
-	<NSAppleEventDescriptor.h>
-	<NSAppleEventManager.h>
-	<NSAppleScript.h>
-	<NSByteCountFormatter.h>
-	<NSFileCoordinator.h>
-	<NSFilePresenter.h>
-	<NSFileVersion.h>
-	<NSFileWrapper.h>
-	<NSHFSFileTypes.h>
-	<NSLinguisticTagger.h>
-	<NSObjectScripting.h>
-	<NSOrderedSet.h>
-	<NSOrthography.h>
-	<NSScriptClassDescription.h>
-	<NSScriptCoercionHandler.h>
-	<NSScriptCommand.h>
-	<NSScriptCommandDescription.h>
-	<NSScriptExecutionContext.h>
-	<NSScriptKeyValueCoding.h>
-	<NSScriptObjectSpecifiers.h>
-	<NSScriptStandardSuiteCommands.h>
-	<NSScriptSuiteRegistry.h>>
-	<NSUbiquitousKeyValueStore.h>
-	<NSUserNotification.h>
-	<NSUserScriptTask.h>
-	<NSXPCConnection.h>
--------------------------------------------------------------
-Foundation:
-	<NSOrderedSet.h>
-	<NSOrthography.h>
-	<NSPort.h>
-	<NSPropertyList.h>
-	<NSByteCountFormatter.h>
-	<NSFileCoordinator.h>
-	<NSFilePresenter.h>
-	<NSFileVersion.h>
-	<NSFileWrapper.h>
-	<NSLinguisticTagger.h>
-	<NSUbiquitousKeyValueStore.h>
-	<NSAppleEventDescriptor.h>
-	<NSAppleEventManager.h>
-	<NSAppleScript.h>
-	<NSHFSFileTypes.h>
-	<NSObjectScripting.h>
-	<NSScriptClassDescription.h>
-	<NSScriptCoercionHandler.h>
-	<NSScriptCommand.h>
-	<NSScriptCommandDescription.h>
-	<NSScriptExecutionContext.h>
-	<NSScriptKeyValueCoding.h>
-	<NSScriptObjectSpecifiers.h>
-	<NSScriptStandardSuiteCommands.h>
-	<NSScriptSuiteRegistry.h>
-	<NSUserScriptTask.h>
-	<NSXPCConnection.h>
+==
+NONE
+
 -------------------------------------------------------------
 FoundationErrors:
 	NSFileWriteFileExistsError
@@ -86,10 +34,6 @@ FoundationErrors:
     NSXPCConnectionErrorMinimum
     NSXPCConnectionErrorMaximum
 -------------------------------------------------------------
-NSArchiver:
-	- encodeRootObject:
-	- encodeConditionalObject:
--------------------------------------------------------------
 NSAttributedString:
 	NSAttributedStringEnumerationReverse
   	NSAttributedStringEnumerationLongestEffectiveRangeNotRequired
@@ -98,17 +42,9 @@ NSAttributedString:
 	- enumerateAttribute:inRange:options:usingBlock:
 -------------------------------------------------------------
 NSBundle:
-	- bundleURL
-	- resourceURL
-	- executableURL
-	- URLForAuxiliaryExecutable:
-	- privateFrameworksURL
 	- sharedFrameworksURL
 	- sharedSupportURL
-	- builtInPlugInsURL
 	- appStoreReceiptURL
-	- pathForAuxiliaryExecutable:
-	- privateFrameworksPath
 	- sharedFrameworksPath
 	- sharedSupportPath
 	+ URLsForResourcesWithExtension:subdirectory:inBundleWithURL:
@@ -222,11 +158,6 @@ NSDecimalNumber:
 	@interface NSScanner (NSDecimalNumberScanning)
 -------------------------------------------------------------
 NSDictionary:
-	- keysSortedByValueUsingComparator:
-	- keysSortedByValueWithOptions:usingComparator:
-	+ dictionaryWithObjects:forKeys:(const id <NSCopying> [])keys count:
-	- initWithObjects:forKeys:(const id <NSCopying> [])keys count:
-
 	@interface NSDictionary (NSSharedKeySetDictionary)
 	@interface NSMutableDictionary (NSSharedKeySetDictionary)
 -------------------------------------------------------------
@@ -269,14 +200,8 @@ NSExpression:
 	- rightExpression
 	- expressionBlock
 -------------------------------------------------------------
-NSFileHandler:
+NSFileHandle:
 	<NSArray.h>
-
-	@class NSError
-
-	+ fileHandleForReadingFromURL:error:
-	+ fileHandleForWritingToURL:error:
-	+ fileHandleForUpdatingURL:error:
 
 	@property (copy) void (^readabilityHandler)(NSFileHandle *)
 	@property (copy) void (^writeabilityHandler)(NSFileHandle *)
@@ -295,7 +220,6 @@ NSFileManager:
 	- mountedVolumeURLsIncludingResourceValuesForKeys:options:
 	- contentsOfDirectoryAtURL:includingPropertiesForKeys:options:error:
 	- URLsForDirectory:inDomains:
-	- URLForDirectory:inDomain:appropriateForURL:create:error:
 	- createDirectoryAtURL:withIntermediateDirectories:attributes:error:
 	- createSymbolicLinkAtURL:withDestinationURL:error:
 	- setDelegate:
@@ -311,7 +235,6 @@ NSFileManager:
 	- linkItemAtURL:toURL:error:
 	- removeItemAtURL:error:
 	- trashItemAtURL:resultingItemURL:error:
-	- enumeratorAtURL:includingPropertiesForKeys:options:errorHandler:
 	- (__strong const char *)fileSystemRepresentationWithPath:
 	- replaceItemAtURL:withItemAtURL:backupItemName:options:resultingItemURL:error:
 	- setUbiquitous:itemAtURL:destinationURL:error:
@@ -845,7 +768,6 @@ NSURL:
 	- stopAccessingSecurityScopedResource
 	- stringByAddingPercentEscapesUsingEncoding:
 	- stringByReplacingPercentEscapesUsingEncoding:
-	- URLByAppendingPathComponent:isDirectory:
 -------------------------------------------------------------
 NSURLAuthenticationChallenge:
 	- performDefaultHandlingForAuthenticationChallenge:
@@ -981,7 +903,6 @@ NSXMLNodeOptions:
 NSXMLParser:
 	@class NSInputStream
 
-	- initWithStream:
 	- parseError
 -------------------------------------------------------------
 NSZone:

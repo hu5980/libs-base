@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
 
    <title>NSFileHandle class reference</title>
    $Date$ $Revision$
@@ -32,6 +32,7 @@
 #import "Foundation/NSHost.h"
 #import "Foundation/NSFileHandle.h"
 #import "Foundation/NSPathUtilities.h"
+#import "Foundation/NSURL.h"
 #import "GNUstepBase/GSTLS.h"
 #import "GNUstepBase/NSString+GNUstepBase.h"
 #import "GSPrivate.h"
@@ -66,6 +67,7 @@ static Class NSFileHandle_ssl_class = nil;
 }
 - (void) sslDisconnect;
 - (BOOL) sslHandshakeEstablished: (BOOL*)result outgoing: (BOOL)isOutgoing;
+- (NSDictionary*) sslOptions;
 - (NSString*) sslSetOptions: (NSDictionary*)options;
 @end
 #endif
@@ -195,6 +197,36 @@ static Class NSFileHandle_ssl_class = nil;
   id	o = [self allocWithZone: NSDefaultMallocZone()];
 
   return AUTORELEASE([o initWithNullDevice]);
+}
+
++ (id) fileHandleForReadingFromURL: (NSURL*)url error:(NSError**)error
+{
+  id	o = [self fileHandleForReadingAtPath: [url path]];
+  if (!o && error)
+    {
+      *error = [NSError _last];
+    }
+  return o;
+}
+
++ (id) fileHandleForWritingToURL: (NSURL*)url error:(NSError**)error
+{
+  id	o = [self fileHandleForWritingAtPath: [url path]];
+  if (!o && error)
+    {
+      *error = [NSError _last];
+    }
+  return o;
+}
+
++ (id) fileHandleForUpdatingURL: (NSURL*)url error:(NSError**)error
+{
+  id	o = [self fileHandleForUpdatingAtPath: [url path]];
+  if (!o && error)
+    {
+      *error = [NSError _last];
+    }
+  return o;
 }
 
 /**
@@ -853,6 +885,11 @@ NSString * const NSFileHandleOperationException
   return nil;
 }
 
+- (NSDictionary*) sslOptions
+{
+  return nil;
+}
+
 - (NSString*) sslOwner
 {
   return nil;
@@ -865,7 +902,11 @@ NSString * const NSFileHandleOperationException
   NSMutableDictionary   *opts;
   NSString              *err;
 
-  opts = [NSMutableDictionary dictionaryWithCapacity: 3];
+  opts = AUTORELEASE([[self sslOptions] mutableCopy]);
+  if (nil == opts)
+    {
+      opts = [NSMutableDictionary dictionaryWithCapacity: 3];
+    }
   if (nil != certFile)
     {
       [opts setObject: certFile forKey: GSTLSCertificateFile];
@@ -1072,6 +1113,11 @@ GSTLSHandlePush(gnutls_transport_ptr_t handle, const void *buffer, size_t len)
 - (NSString*) sslIssuer
 {
   return [session issuer];
+}
+
+- (NSDictionary*) sslOptions
+{
+  return opts;
 }
 
 - (NSString*) sslOwner

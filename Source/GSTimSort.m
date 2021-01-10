@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
    */
 
 #import "common.h"
@@ -627,15 +627,11 @@ descriptorOrComparator: (id)descriptorOrComparator
   while (stackSize > 1)
     {
       NSInteger n = stackSize -2;
-      if (  (n >= 1
-              && runStack[n-1].length <= (runStack[n].length
-                                          + runStack[n+1].length)
-            )
-         || (n >= 2 
-              && runStack[n-2].length <= (runStack[n].length 
-                                          + runStack[n-1].length)
-            )
-         )
+
+      if ((n >= 1 && runStack[n-1].length
+	  <= (runStack[n].length + runStack[n+1].length))
+        || (n >= 2 && runStack[n-2].length
+	  <= (runStack[n].length + runStack[n-1].length)))
         {
           if (runStack[n-1].length < runStack[n+1].length)
             {

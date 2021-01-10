@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
    
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
   */
 
 /**
@@ -800,6 +800,11 @@ typedef NSUInteger NSStringEncodingConversionOptions;
 - (NSString*) stringByReplacingPercentEscapesUsingEncoding: (NSStringEncoding)e;
 - (NSString*) stringByTrimmingCharactersInSet: (NSCharacterSet*)aSet;
 - (const char *)UTF8String;
+#endif
+
+#if OS_API_VERSION(MAC_OS_X_VERSION_10_9,GS_API_LATEST)
+- (NSString *) stringByAddingPercentEncodingWithAllowedCharacters: (NSCharacterSet *)aSet;
+- (NSString *) stringByRemovingPercentEncoding;
 #endif
 
 #if OS_API_VERSION(MAC_OS_X_VERSION_10_3,GS_API_LATEST) 

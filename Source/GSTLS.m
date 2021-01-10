@@ -12,12 +12,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
 
    */
 
@@ -1117,7 +1117,8 @@ static NSMutableDictionary      *credentialsCache = nil;
   NSMutableString       *k;
 
   /* Build a unique key for the credentials based on all the
-   * information (file names and password) used to build them.
+   * information used to build them (apart from password used
+   * to load the key).
    */
   k = [NSMutableString stringWithCapacity: 1024];
   ca = standardizedPath(ca);
@@ -1133,8 +1134,6 @@ static NSMutableDictionary      *credentialsCache = nil;
   if (nil != cf) [k appendString: cf];
   [k appendString: @":"];
   if (nil != ck) [k appendString: ck];
-  [k appendString: @":"];
-  if (nil != cp) [k appendString: cp];
 
   [credentialsLock lock];
   c = [credentialsCache objectForKey: k];
@@ -1703,15 +1702,6 @@ retrieve_callback(gnutls_session_t session,
           str = nil;
         }
 
-#if GNUTLS_VERSION_NUMBER < 0x020C00
-      gnutls_set_default_priority(session);
-#else
-      /* By default we disable SSL3.0 as the 'POODLE' attack (Oct 2014)
-       * renders it insecure.
-       */
-      gnutls_priority_set_direct(session, "NORMAL:-VERS-SSL3.0", NULL);
-#endif
-
       if (nil == str)
         {
           if ([pri isEqual: NSStreamSocketSecurityLevelNone] == YES)
@@ -1760,13 +1750,35 @@ retrieve_callback(gnutls_session_t session,
                 "NORMAL:-VERS-SSL3.0:+VERS-TLS-ALL", NULL);
 #endif
             }
+          else
+            {
+#if GNUTLS_VERSION_NUMBER < 0x020C00
+              gnutls_set_default_priority(session);
+#else
+              /* By default we disable SSL3.0 as the 'POODLE' attack (Oct 2014)
+               * renders it insecure.
+               */
+              gnutls_priority_set_direct(session, "NORMAL:-VERS-SSL3.0", NULL);
+#endif
+            }
         }
-#if GNUTLS_VERSION_NUMBER >= 0x020C00
       else
         {
-          gnutls_priority_set_direct(session, [str UTF8String], NULL);
-        }
+#if GNUTLS_VERSION_NUMBER < 0x020C00
+	  gnutls_set_default_priority(session);
+#else
+	  /* By default we disable SSL3.0 as the 'POODLE' attack (Oct 2014)
+	   * renders it insecure.
+	   */
+          const char *err_pos;
+          if (gnutls_priority_set_direct(session, [str UTF8String], &err_pos))
+            {
+              NSLog(@"Invalid GSTLSPriority: %s", err_pos);
+              NSLog(@"Falling back to NORMAL:-VERS-SSL3.0");
+              gnutls_priority_set_direct(session, "NORMAL:-VERS-SSL3.0", NULL);
+            }
 #endif
+        }
 
       /* Set certificate credentials for this session.
        */
@@ -2167,11 +2179,6 @@ retrieve_callback(gnutls_session_t session,
         gnutls_certificate_type_get(session));
       [str appendFormat: _(@"- Certificate Type: %s\n"), tmp];
     }
-
-  /* print the compression algorithm (if any)
-   */
-  tmp = gnutls_compression_get_name(gnutls_compression_get(session));
-  [str appendFormat: _(@"- Compression: %s\n"), tmp];
 
   /* print the name of the cipher used.
    * eg 3DES.

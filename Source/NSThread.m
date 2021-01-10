@@ -20,12 +20,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
 
    <title>NSThread class reference</title>
    $Date$ $Revision$
@@ -38,21 +38,40 @@
 // Dummy implementatation
 // cleaner than IFDEF'ing the code everywhere
 #if !(HAVE_PTHREAD_SPIN_LOCK)
-#warning no spin_locks, using dummy versions
-typedef int pthread_spinlock_t;
+typedef volatile int pthread_spinlock_t;
 int pthread_spin_init(pthread_spinlock_t *lock, int pshared)
 {
-#if DEBUG
+#if DEBUG && !__has_builtin(__sync_bool_compare_and_swap)
   fprintf(stderr,"NSThread.m: Warning this platform does not support spin locks - init.\n");
 #endif
   return 0;
 }
 int pthread_spin_lock(pthread_spinlock_t *lock)
 {
+#if __has_builtin(__sync_bool_compare_and_swap)
+  int count = 0;
+  // Set the spin lock value to 1 if it is 0.
+  while(!__sync_bool_compare_and_swap(lock, 0, 1))
+  {
+    count++;
+    if (0 == count % 10)
+    {
+      // If it is already 1, let another thread play with the CPU for a
+      // bit then try again.
+      sleep(0);
+    }
+  }
+#else
+  #warning no spin_locks, using dummy versions
+#endif
   return 0;
 }
 int pthread_spin_unlock(pthread_spinlock_t *lock)
 {
+#if __has_builtin(__sync_bool_compare_and_swap)
+  __sync_synchronize();
+  *lock = 0;
+#endif
   return 0;
 }
 int pthread_spin_destroy(pthread_spinlock_t *lock)
@@ -744,6 +763,7 @@ GSCurrentThreadDictionary(void)
 static void
 gnustep_base_thread_callback(void)
 {
+  static pthread_mutex_t  threadLock = PTHREAD_MUTEX_INITIALIZER;
   /*
    * Protect this function with locking ... to avoid any possibility
    * of multiple threads registering with the system simultaneously,
@@ -752,7 +772,7 @@ gnustep_base_thread_callback(void)
    */
   if (entered_multi_threaded_state == NO)
     {
-      [gnustep_global_lock lock];
+      pthread_mutex_lock(&threadLock);
       if (entered_multi_threaded_state == NO)
 	{
 	  /*
@@ -762,6 +782,12 @@ gnustep_base_thread_callback(void)
 	   * threaded BEFORE sending the notifications.
 	   */
 	  entered_multi_threaded_state = YES;
+	  /*
+	   * Enter pool after setting flag, because -[NSAutoreleasePool
+	   * allocWithZone:] calls GSCurrentThread(), which may end up
+	   * calling this function, which would cause a deadlock.
+	   */
+	  ENTER_POOL
 	  NS_DURING
 	    {
 	      [GSPerformHolder class];	// Force initialization
@@ -795,8 +821,9 @@ gnustep_base_thread_callback(void)
 	      fflush(stderr);
 	    }
 	  NS_ENDHANDLER
+	  LEAVE_POOL
 	}
-      [gnustep_global_lock unlock];
+      pthread_mutex_unlock(&threadLock);
     }
 }
 
@@ -841,15 +868,9 @@ unregisterActiveThread(NSThread *thread)
 {
   if (thread->_active == YES)
     {
-      /*
-       * Set the thread to be inactive to avoid any possibility of recursion.
+      /* Let observers know this thread is exiting.
        */
-      thread->_active = NO;
-      thread->_finished = YES;
-
-      /*
-       * Let observers know this thread is exiting.
-       */
+      ENTER_POOL
       if (nc == nil)
 	{
 	  nc = RETAIN([NSNotificationCenter defaultCenter]);
@@ -858,7 +879,14 @@ unregisterActiveThread(NSThread *thread)
 			object: thread
 		      userInfo: nil];
 
+      /* Set the thread to be finished *after* notification it will exit.
+       * This is the order OSX 10.15.4 does it (May 2020).
+       */
+      thread->_active = NO;
+      thread->_finished = YES;
+
       [(GSRunLoopThreadInfo*)thread->_runLoopInfo invalidate];
+      LEAVE_POOL
       RELEASE(thread);
       pthread_setspecific(thread_object_key, nil);
     }
@@ -1222,12 +1250,7 @@ unregisterActiveThread(NSThread *thread)
         }
       while (i > 0)
         {
-          if (PTHREAD_SETNAME(buf) == 0)
-            {
-              break;    // Success
-            }
-
-          if (ERANGE == errno)
+          if (PTHREAD_SETNAME(buf) == ERANGE)
             {
               /* Name must be too long ... gnu/linux uses 15 characters
                */
@@ -1255,7 +1278,7 @@ unregisterActiveThread(NSThread *thread)
             }
           else
             {
-              break;    // Some other error
+              break;    // Success or some other error
             }
         }
     }
@@ -2005,6 +2028,12 @@ GSRunLoopInfoForThread(NSThread *aThread)
     }
   NSDeallocateObject(self);
   GSNOSUPERDEALLOC;
+}
+
+- (NSString*) description
+{
+  return [[super description] stringByAppendingFormat: @" [%s %s]",
+    class_getName(object_getClass(receiver)), sel_getName(selector)];
 }
 
 - (void) fire

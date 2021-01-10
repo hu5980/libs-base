@@ -450,7 +450,7 @@ GSIMapAddNodeToMap(GSIMapTable map, GSIMapNode node)
 {
   GSIMapBucket	bucket;
 
-  bucket = GSIMapBucketForKey(map, node->key);
+  bucket = GSIMapBucketForKey(map, GSI_MAP_READ_KEY(map, &node->key));
   GSIMapAddNodeToBucket(bucket, node);
   map->nodeCount++;
 }
@@ -543,8 +543,9 @@ GSIMapRemangleBuckets(GSIMapTable map,
 		  GSIMapBucket	bkt;
 
 		  GSIMapRemoveNodeFromBucket(old_buckets, node);
-		  bkt = GSIMapPickBucket(GSI_MAP_HASH(map, node->key),
-		    new_buckets, new_bucketCount);
+		  bkt = GSIMapPickBucket(GSI_MAP_HASH(map,
+		    GSI_MAP_READ_KEY(map, &node->key)),
+		      new_buckets, new_bucketCount);
 		  GSIMapAddNodeToBucket(bkt, node);
 		}
 	    }
@@ -561,8 +562,9 @@ GSIMapRemangleBuckets(GSIMapTable map,
 	  GSIMapBucket	bkt;
 
 	  GSIMapRemoveNodeFromBucket(old_buckets, node);
-	  bkt = GSIMapPickBucket(GSI_MAP_HASH(map, node->key),
-	    new_buckets, new_bucketCount);
+	  bkt = GSIMapPickBucket(GSI_MAP_HASH(map,
+	    GSI_MAP_READ_KEY(map, &node->key)),
+	      new_buckets, new_bucketCount);
 	  GSIMapAddNodeToBucket(bkt, node);
 	}
       old_buckets++;
@@ -945,7 +947,7 @@ GSIMapEnumeratorNextNode(GSIMapEnumerator enumerator)
 	{
 	  uintptr_t	bucket = ((_GSIE)enumerator)->bucket;
 
-	  while (next != 0 && next->key.addr == 0)
+	  while (next != 0 && GSI_MAP_NODE_IS_EMPTY(map, next))
 	    {
 	      next = GSIMapRemoveAndFreeNode(map, bucket, next);
 	    }
@@ -961,7 +963,7 @@ GSIMapEnumeratorNextNode(GSIMapEnumerator enumerator)
 	      while (next == 0 && ++bucket < bucketCount)
 		{
 		  next = (map->buckets[bucket]).firstNode;
-		  while (next != 0 && next->key.addr == 0)
+		  while (next != 0 && GSI_MAP_NODE_IS_EMPTY(map, next))
 		    {
 		      next = GSIMapRemoveAndFreeNode(map, bucket, next);
 		    }
@@ -987,9 +989,7 @@ GSIMapEnumeratorNextNode(GSIMapEnumerator enumerator)
  */
 GS_STATIC_INLINE NSUInteger 
 GSIMapCountByEnumeratingWithStateObjectsCount(GSIMapTable map,
-                                              NSFastEnumerationState *state,
-                                              id *stackbuf,
-                                              NSUInteger len)
+  NSFastEnumerationState *state, id *stackbuf, NSUInteger len)
 {
   NSInteger count;
   NSInteger i;
@@ -1011,7 +1011,7 @@ GSIMapCountByEnumeratingWithStateObjectsCount(GSIMapTable map,
   /* Construct the real enumerator */
   if (0 == state->state)
     {
-        enumerator = GSIMapEnumeratorForMap(map);
+      enumerator = GSIMapEnumeratorForMap(map);
     }
   else
     {

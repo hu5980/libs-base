@@ -338,8 +338,8 @@ static void GSSetupEncodingTable(void)
 		   */
 		  l = strlen(entry->iconv);
 		  lossy = malloc(l + 11);
-		  strncpy(lossy, entry->iconv, l);
-		  strncpy(lossy + l, "//TRANSLIT", 11);
+		  memcpy(lossy, entry->iconv, l);
+		  memcpy(lossy + l, "//TRANSLIT", 11);
 		  c = iconv_open(lossy, UNICODE_ENC);
 		  if (c == (iconv_t)-1)
 		    {
@@ -1936,7 +1936,7 @@ GSFromUnicode(unsigned char **dst, unsigned int *size, const unichar *src,
 		      u2 = src[spos++];
 		      u2 = (((u2 & 0xff00) >> 8) + ((u2 & 0x00ff) << 8));
 
-		      if ((u2 < 0xdc00) && (u2 > 0xdfff))
+		      if ((u2 < 0xdc00) || (u2 > 0xdfff))
 			{
 			  spos--;
 			  if (strict)
@@ -2054,7 +2054,7 @@ GSFromUnicode(unsigned char **dst, unsigned int *size, const unichar *src,
 		      /* get second unichar */
 		      u2 = src[spos++];
 
-		      if ((u2 < 0xdc00) && (u2 > 0xdfff))
+		      if ((u2 < 0xdc00) || (u2 > 0xdfff))
 			{
 			  spos--;
 			  if (strict)
@@ -2865,7 +2865,12 @@ GSPrivateCStringEncoding(const char *encoding)
 
   if (enc == GSUndefinedEncoding)
     {
+#ifdef __ANDROID__
+      // Android uses UTF-8 as default encoding (e.g. for file paths)
+      enc = NSUTF8StringEncoding;
+#else
       enc = NSISOLatin1StringEncoding;
+#endif
     }
   else if (GSPrivateIsEncodingSupported(enc) == NO)
     {

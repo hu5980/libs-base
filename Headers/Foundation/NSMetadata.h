@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
    
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
 
    AutogsdocSource: NSMetadataQuery.h
 */ 
@@ -30,18 +30,10 @@
 
 #import <Foundation/NSObject.h>
 #import <Foundation/NSTimer.h>
+#import <Foundation/NSMetadataAttributes.h>
 
 @class NSPredicate, NSMutableDictionary, NSDictionary, NSMutableArray;
 @protocol NSMetadataQueryDelegate;
-
-// Metadata item constants...
-GS_EXPORT NSString * const NSMetadataItemFSNameKey;
-GS_EXPORT NSString * const NSMetadataItemDisplayNameKey;
-GS_EXPORT NSString * const NSMetadataItemURLKey;
-GS_EXPORT NSString * const NSMetadataItemPathKey;
-GS_EXPORT NSString * const NSMetadataItemFSSizeKey;
-GS_EXPORT NSString * const NSMetadataItemFSCreationDateKey;
-GS_EXPORT NSString * const NSMetadataItemFSContentChangeDateKey;
 
 @interface NSMetadataItem : NSObject
 {

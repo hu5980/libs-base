@@ -89,8 +89,9 @@ fi
 if test -z "$LIBRARY_COMBO"; then
   LIBRARY_COMBO=`gnustep-config --variable=LIBRARY_COMBO 2>&5`
 fi
+OBJC_RUNTIME_LIB=`echo $LIBRARY_COMBO | tr '-' ' ' | awk '{print $1}'`
 
-if test "$OBJC_RUNTIME_LIB" = "ng"; then
+if test "$OBJC_RUNTIME_LIB" = "ng" -o "$OBJC_RUNTIME_LIB" = "apple"; then
   nonfragile=yes
   BASE_NONFRAGILE_ABI=1
 else
@@ -1246,12 +1247,14 @@ case "$target_os" in
 		LDFLAGS="$LDFLAGS -L/usr/local/lib";;
   netbsd*)	CPPFLAGS="$CPPFLAGS -I/usr/pkg/include"
 		LDFLAGS="$LDFLAGS -Wl,-R/usr/pkg/lib -L/usr/pkg/lib";;
+  linux-android* )
+		# link against libandroid for native application APIs
+		LIBS="$LIBS -landroid";;
 esac
 
 #--------------------------------------------------------------------
 # Set Apple/Darwin/OSX/NeXT information for other tests
 #--------------------------------------------------------------------
-OBJC_RUNTIME_LIB=`echo $LIBRARY_COMBO | tr '-' ' ' | awk '{print $1}'`
 AC_MSG_CHECKING(the Objective-C runtime)
 if test "$OBJC_RUNTIME_LIB" = "nx" -o "$OBJC_RUNTIME_LIB" = "apple"; then
   AC_MSG_RESULT(NeXT)
@@ -1292,7 +1295,7 @@ else
 fi
 
 if test -f "$GNUSTEP_HDIR/objc/objc.h"; then
-  if test -f "$GNUSTEP_LDIR/libobjc.a" -o -f "$GNUSTEP_LDIR/libobjc.so" -o -f "$GNUSTEP_LDIR/libobjc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc-gnu.dylib" -o -f "$GNUSTEP_LDIR/libobjc_gc.a" -o -f "$GNUSTEP_LDIR/libobjc_gc.so" -o -f "$GNUSTEP_LDIR/libobjc_gc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc_gc-gnu.dylib"; then
+  if test -f "$GNUSTEP_LDIR/libobjc.a" -o -f "$GNUSTEP_LDIR/libobjc.so" -o -f "$GNUSTEP_LDIR/libobjc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc-gnu.dylib" -o -f "$GNUSTEP_LDIR/objc.lib"; then
     gs_cv_objc_libdir="$GNUSTEP_LDIR"
     gs_cv_objc_incdir="$GNUSTEP_HDIR"
   fi
@@ -1309,7 +1312,7 @@ else
 fi
 
 if test -f "$GNUSTEP_HDIR/objc/objc.h"; then
-  if test -f "$GNUSTEP_LDIR/libobjc.a" -o -f "$GNUSTEP_LDIR/libobjc.so" -o -f "$GNUSTEP_LDIR/libobjc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc-gnu.dylib" -o -f "$GNUSTEP_LDIR/libobjc_gc.a" -o -f "$GNUSTEP_LDIR/libobjc_gc.so" -o -f "$GNUSTEP_LDIR/libobjc_gc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc_gc-gnu.dylib"; then
+  if test -f "$GNUSTEP_LDIR/libobjc.a" -o -f "$GNUSTEP_LDIR/libobjc.so" -o -f "$GNUSTEP_LDIR/libobjc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc-gnu.dylib" -o -f "$GNUSTEP_LDIR/objc.lib"; then
     gs_cv_objc_libdir="$GNUSTEP_LDIR"
     gs_cv_objc_incdir="$GNUSTEP_HDIR"
   fi
@@ -1326,7 +1329,7 @@ else
 fi
 
 if test -f "$GNUSTEP_HDIR/objc/objc.h"; then
-  if test -f "$GNUSTEP_LDIR/libobjc.a" -o -f "$GNUSTEP_LDIR/libobjc.so" -o -f "$GNUSTEP_LDIR/libobjc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc-gnu.dylib" -o -f "$GNUSTEP_LDIR/libobjc_gc.a" -o -f "$GNUSTEP_LDIR/libobjc_gc.so" -o -f "$GNUSTEP_LDIR/libobjc_gc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc_gc-gnu.dylib"; then
+  if test -f "$GNUSTEP_LDIR/libobjc.a" -o -f "$GNUSTEP_LDIR/libobjc.so" -o -f "$GNUSTEP_LDIR/libobjc.dll.a" -o -f "$GNUSTEP_LDIR/libobjc-gnu.dylib" -o -f "$GNUSTEP_LDIR/objc.lib"; then
     gs_cv_objc_libdir="$GNUSTEP_LDIR"
     gs_cv_objc_incdir="$GNUSTEP_HDIR"
   fi
@@ -1343,6 +1346,11 @@ if test "$gs_cv_objc_libdir" != "NONE"; then
   LDIR_FLAGS="$LDIR_FLAGS -L$gs_cv_objc_libdir/$LIBRARY_COMBO -L$gs_cv_objc_libdir"
   CPPFLAGS="$CPPFLAGS -I$gs_cv_objc_incdir"
   LDFLAGS="$LDFLAGS -L$gs_cv_objc_libdir"
+
+  # add to path on Windows for config checks to find DLL at runtime
+  case $host_os in
+    mingw*) PATH=$PATH:$gs_cv_objc_libdir;;
+  esac
 fi
 
 #--------------------------------------------------------------------
@@ -2014,7 +2022,6 @@ AC_SUBST(HAVE_BLOCKS)
 # Don't revert any Objective-C flags as they are used in the next test
 
 GS_NONFRAGILE=0
-GS_MIXEDABI=0
 if test "$nonfragile" = "yes"; then
   saved_CPPFLAGS="$CPPFLAGS"
   CPPFLAGS="$CPPFLAGS $OBJCFLAGS -x objective-c"
@@ -2026,21 +2033,10 @@ if test "$nonfragile" = "yes"; then
   CPPFLAGS="$saved_CPPFLAGS"
   if test $non_fragile = yes; then
     GS_NONFRAGILE=1
-    if test "$OBJC_RUNTIME_LIB" != "ng"; then
-      AC_ARG_ENABLE(mixedabi,
-        [  --disable-mixedabi
-	    Disables the combined use of fragile and nonfragile ABI so that base
-	    can be built taking full advantage of the nonfragile ABI.],,
-        enable_mixedabi=yes)
-      if test $enable_mixedabi = yes; then
-        GS_MIXEDABI=1
-      fi
-    fi
   fi
   AC_MSG_RESULT($non_fragile)
 fi
 AC_SUBST(GS_NONFRAGILE)
-AC_SUBST(GS_MIXEDABI)
 
 
 # Don't revert any Objective-C flags as they are used in the next test
@@ -2237,7 +2233,7 @@ AC_CHECK_HEADERS([sys/mount.h], [], [],
 AC_CHECK_HEADERS(sys/types.h windows.h locale.h langinfo.h)
 saved_LIBS="$LIBS"
 AC_CHECK_LIB(m, main)
-AC_CHECK_FUNCS(statvfs link symlink readlink geteuid getlogin getpwnam getpwnam_r getpwuid getpwuid_r getgrgid getgrgid_r getgrnam getgrnam_r rint getopt)
+AC_CHECK_FUNCS(utimensat statvfs link symlink readlink geteuid getlogin getpwnam getpwnam_r getpwuid getpwuid_r getgrgid getgrgid_r getgrnam getgrnam_r rint getopt malloc_usable_size)
 LIBS="$saved_LIBS"
 
 AC_CACHE_CHECK([for pw_gecos field in struct passwd],
@@ -2318,6 +2314,25 @@ fi
 
 AC_CHECK_FUNCS(__builtin_extract_return_address)
 
+# Enable unwind if found by default
+AC_ARG_WITH(unwind,
+  AS_HELP_STRING([--without-unwind], [Ignore unwind if found and disable it]))
+
+AS_IF([test "x$with_unwind" != "xno"],
+  [AC_CHECK_HEADERS(unwind.h)] [AC_CHECK_FUNCS(_Unwind_GetIP)],
+  [have_unwind=no])
+
+AS_IF([test "x$ac_cv_func__Unwind_GetIP" = "xyes"],
+  [have_unwind=yes],
+  [have_unwind=no])
+
+AS_IF([test "x$have_unwind" = "xyes"],
+  [AC_DEFINE([WITH_UNWIND], [1], [Have and use Unwind library])],
+  [AS_IF([test "x$with_unwind" = "xyes"],
+         [AC_MSG_ERROR([unwind requested but not found])
+  ])
+])
+
 #--------------------------------------------------------------------
 # These headers/functions needed by NSLog.m
 #--------------------------------------------------------------------
@@ -2383,6 +2398,10 @@ fi
 #--------------------------------------------------------------------
 AC_CHECK_FUNCS(getcwd)
 AC_HEADER_DIRENT
+
+# Look for file creation date on NetBSD, FreeBSD, Darwin
+AC_CHECK_MEMBERS([struct stat.st_birthtime, struct stat.st_birthtimespec, struct stat.st_birthtim, struct stat64.st_birthtimespec],
+		 ,,[#include <sys/stat.h>])
 
 #--------------------------------------------------------------------
 # This function needed by gdomap.c
@@ -2500,7 +2519,8 @@ AC_SUBST(DEFINE_UINTPTR_T)
 # These used by GSFileHandle.m and distributed objects
 # On some systems we need -lnsl ... so check for that case.
 #--------------------------------------------------------------------
-AC_SEARCH_LIBS([inet_ntop],[nsl])
+AC_CHECK_HEADERS(ws2tcpip.h)
+AC_SEARCH_LIBS([inet_ntop],[nsl Ws2_32])
 AC_CHECK_FUNCS(gethostbyaddr_r inet_aton inet_pton inet_ntop sigaction)
 
 USE_ZLIB=0
@@ -2822,7 +2842,7 @@ AC_ARG_WITH(ffi-library,
 [  --with-ffi-library=PATH       Library path for ffi libs],
     ffi_libdir="$withval", ffi_libdir="no")
 if test ${ffi_libdir} != "no"; then
-GS_ADD_LIBRARY_PATH([${ffi_libdir}])
+  GS_ADD_LIBRARY_PATH([${ffi_libdir}])
 fi
 
 if test "$do_broken_libffi" = "no"; then
@@ -2999,7 +3019,11 @@ int main(int argc,char **argv)
 ,
   found_iconv=no
 ,
-  found_iconv="$cross_found_iconv_libc",
+  found_iconv="$cross_found_iconv_libc";
+  if test "$found_iconv" = "yes"; then
+    AC_DEFINE(HAVE_ICONV,1, [Define if you have this function])
+    AC_MSG_RESULT([[yes, in libc (via cross.config)]])
+  fi
 )
 
 if test $found_iconv = no ; then
@@ -3028,7 +3052,10 @@ if test $found_iconv = no ; then
     LIBS="$old_LIBS"
   ,
     found_iconv="$cross_found_iconv_liconv";
-    if test "$found_iconv" = "no"; then
+    if test "$found_iconv" = "yes"; then
+      AC_DEFINE(HAVE_ICONV,1, [Define if you have this function])
+      AC_MSG_RESULT([[yes, -liconv (via cross.config)]])
+    else
       LIBS="$old_LIBS"
     fi
   )
@@ -3052,7 +3079,11 @@ if test $found_iconv = no ; then
     LIBS="$old_LIBS"
   ,
     found_iconv="$cross_found_iconv_lgiconv";
-    if test "$found_iconv" = "no"; then
+    if test "$found_iconv" = "yes"; then
+      AC_DEFINE(HAVE_ICONV,1, [Define if you have this function])
+      AC_DEFINE(HAVE_GICONV,1, [Define if you have this function])
+      AC_MSG_RESULT([[yes, -lgiconv (via cross.config)]])
+    else
       LIBS="$old_LIBS"
     fi
   )
@@ -3141,13 +3172,13 @@ AC_ARG_ENABLE(xml,
   [  --disable-xml			Build even if XML-dependencies are not met],,
   enable_xml=yes)
 
-if test $enable_xml = yes; then
-  # Save CFLAGS and LIBS as AM_PATH_XML clobbers these variables regardless
-  # of the success of the macro.
-  saved_LIBS="$LIBS"
-  saved_CFLAGS="$CFLAGS"
+HAVE_LIBXML=0
 
-  AM_PATH_XML(2.3.0, enable_libxml=yes, enable_libxml=no)
+if test $enable_xml = yes; then
+  PKG_CHECK_MODULES([XML], [libxml-2.0 >= 2.3.0], [enable_libxml=yes], [
+    AM_PATH_XML(2.3.0, enable_libxml=yes, enable_libxml=no)
+  ])
+
   if test $enable_libxml = yes; then
     CPPFLAGS="$CPPFLAGS $XML_CFLAGS"
     INCLUDE_FLAGS="$INCLUDE_FLAGS $XML_CFLAGS"
@@ -3155,6 +3186,7 @@ if test $enable_xml = yes; then
     HAVE_LIBXML=1
     AC_DEFINE(HAVE_LIBXML,1,[Define if libxml available])
     AC_CHECK_HEADERS(libxml/SAX2.h)
+
     #--------------------------------------------------------------------
     # Check for (optional) libxslt
     #--------------------------------------------------------------------
@@ -3188,10 +3220,6 @@ if test $enable_xml = yes; then
     fi
     AC_SUBST(HAVE_LIBXSLT)
   else
-    HAVE_LIBXML=0
-    # Restore the CFLAGS and LIBS because AM_PATH_XML messes them
-    LIBS="$saved_LIBS"
-    CFLAGS="$saved_CFLAGS"
     echo
     echo "You do not appear to have usable libxml2 headers/library."
     echo "Building without them will disable the GSXML and NSXMLNode."
@@ -3201,8 +3229,7 @@ if test $enable_xml = yes; then
     AC_MSG_ERROR([Missing support for XML DOM functionality.])
   fi
 else
-  AC_MSG_WARN([Disabled support for XML funtionality.])
-  HAVE_LIBXML=0
+  AC_MSG_WARN([XML functionality disabled.])
 fi
 AC_SUBST(HAVE_LIBXML)
 
@@ -3336,7 +3363,7 @@ AC_ARG_ENABLE(icu,
   enable_icu=yes)
 
 if test "$enable_icu" = "yes"; then
-  PKG_CHECK_MODULES([ICU], [icu-i18n > 50.0])
+  PKG_CHECK_MODULES([ICU], [icu-i18n > 49.0])
   AC_CHECK_HEADERS(unicode/uloc.h unicode/ulocdata.h unicode/ucol.h unicode/ucurr.h unicode/uregex.h unicode/ucal.h unicode/unorm2.h unicode/unum.h unicode/udat.h unicode/udatpg.h unicode/ustring.h unicode/usearch.h unicode/ucnv.h)
   LIBS="$LIBS $ICU_LIBS"
   HAVE_ICU=1
@@ -3347,16 +3374,36 @@ AC_SUBST(HAVE_ICU)
 # Check for libdispatch
 # See DEPENDENCIES POLICY at the start of this file.
 #--------------------------------------------------------------------
+
 HAVE_LIBDISPATCH=0
 AC_ARG_ENABLE(libdispatch,
   [  --disable-libdispatch		Disable dispatching blocks via libdispatch],
-  enable_libdispatch=no,
+  enable_libdispatch=$enableval,
   enable_libdispatch=yes)
 
 if test $enable_libdispatch = yes; then
-  AC_CHECK_HEADERS(dispatch.h, have_dispatch=yes, have_dispatch=no)
-  if test "$have_dispatch" = "no"; then
-    AC_CHECK_HEADERS(dispatch/dispatch.h, have_dispatch=yes, have_dispatch=no)
+  AC_ARG_WITH(dispatch-include,
+  [  --with-dispatch-include=PATH       Include path for dispatch header],
+      dispatch_incdir="$withval", dispatch_incdir="no")
+  if test ${dispatch_incdir} != "no"; then
+      CPPFLAGS="$CPPFLAGS -I${dispatch_incdir}"
+      INCLUDE_FLAGS="$INCLUDE_FLAGS -I${dispatch_incdir}"
+  fi
+
+  AC_ARG_WITH(dispatch-library,
+  [  --with-dispatch-library=PATH       Library path for dispatch lib],
+      dispatch_libdir="$withval", dispatch_libdir="no")
+  if test ${dispatch_libdir} != "no"; then
+    GS_ADD_LIBRARY_PATH([${dispatch_libdir}])
+  fi
+
+  AC_CHECK_HEADERS(dispatch/dispatch.h, have_dispatch=yes, have_dispatch=no)
+  if test "$have_dispatch" = "yes"; then
+    # check for private header which includes runloop integration functions in
+    # the Swift corelibs libdispatch release
+    AC_CHECK_HEADERS(dispatch/private.h)
+  else
+    AC_CHECK_HEADERS(dispatch.h, have_dispatch=yes, have_dispatch=no)
   fi
   if test "$have_dispatch" = "yes"; then
     AC_CHECK_LIB(dispatch, dispatch_queue_create, have_dispatch=yes, have_dispatch=no)
@@ -3377,8 +3424,8 @@ if test $enable_libdispatch = yes; then
       fi
     fi
   else
-  HAVE_LIBDISPATCH=0;
-  # just ignore libdispatch if it's not there
+    HAVE_LIBDISPATCH=0;
+    # just ignore libdispatch if it's not there
   fi
 fi
 AC_SUBST(HAVE_LIBDISPATCH)
@@ -3388,14 +3435,117 @@ if test $HAVE_LIBDISPATCH = 1; then
   # We check whether we have a variant of libdispatch that allows runloop
   # integration
   AC_CHECK_FUNCS(dispatch_main_queue_drain_np dispatch_get_main_queue_handle_np)
-  if test "$ac_cv_func_dispatch_main_queue_drain_np" = "no"; then
+  if test "$ac_cv_func_dispatch_main_queue_drain_np" = "yes" && test "$ac_cv_func_dispatch_get_main_queue_handle_np" = "yes"; then
     HAVE_LIBDISPATCH_RUNLOOP=1
   fi
-  if test "$ac_cv_func_dispatch_get_main_queue_handle_np" = "no"; then
+  # Check for "_4CF" variants of runloop integration functions provided by the
+  # Swift corelibs libdispatch release
+  AC_CHECK_FUNCS(_dispatch_main_queue_callback_4CF _dispatch_get_main_queue_handle_4CF)
+  if test "$ac_cv_func__dispatch_main_queue_callback_4CF" = "yes" && test "$ac_cv_func__dispatch_get_main_queue_handle_4CF" = "yes"; then
     HAVE_LIBDISPATCH_RUNLOOP=1
   fi
 fi
 AC_SUBST(HAVE_LIBDISPATCH_RUNLOOP)
+
+
+#--------------------------------------------------------------------
+# Check for libcurl
+# See DEPENDENCIES POLICY at the start of this file.
+#--------------------------------------------------------------------
+CURL_CONFIG="curl-config"
+AC_ARG_WITH(curl, AS_HELP_STRING([--with-curl=<DIR>],
+  [use curl installed in directory <DIR>]))
+if test "$with_curl" != ""; then
+  CURL_CONFIG="$with_curl/bin/curl-config"
+fi
+
+HAVE_LIBCURL=0
+curl_all=no
+AC_MSG_CHECKING([for libcurl])
+if eval $CURL_CONFIG --version 2>/dev/null >/dev/null; then
+  curl_ver=`$CURL_CONFIG --version | sed -e "s/libcurl //g"`
+  curl_maj=`echo $curl_ver | sed -e "s/^\(.*\)\.\(.*\)\.\(.*\)$/\1/"`
+  curl_min=`echo $curl_ver | sed -e "s/^\(.*\)\.\(.*\)\.\(.*\)$/\2/"`
+  if test $curl_maj -lt 7 -o \( $curl_maj -eq 7 -a $curl_min -lt 49 \); then
+    AC_MSG_RESULT([FAILED (version too old to use])
+  else
+    AC_MSG_RESULT(yes ... version $curl_ver)
+    AC_CHECK_HEADERS(curl/curl.h, curl_ok=yes, curl_ok=no)
+    if test "$curl_ok" = yes; then
+      HAVE_LIBCURL=1
+      CURLCFLAGS=`$CURL_CONFIG --cflags`
+      CURLLIBS=`$CURL_CONFIG --libs`
+      CFLAGS="$CFLAGS $CURLCFLAGS"
+      LIBS="$LIBS $CURLLIBS"
+      curl_all=yes
+      if test \( $curl_maj -eq 7 -a $curl_min -lt 56 \); then
+        AC_MSG_WARN([LOSS OF FUNCTIONALITY (version too old for SSL backend control)])
+        curl_all=no
+      elif test \( $curl_maj -eq 7 -a $curl_min -lt 65 \); then
+        AC_MSG_WARN([LOSS OF FUNCTIONALITY (version too old for connection lifetime control)])
+        curl_all=no
+      fi
+    fi
+  fi
+else
+  AC_MSG_RESULT([FAILED (curl-config not found)])
+fi
+
+if test $HAVE_LIBCURL = 1; then
+  AC_MSG_CHECKING([for libcurl TLS support with gnutls])
+  if $CURL_CONFIG --configure | grep -q with-gnutls; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    curl_all=no
+    AC_MSG_WARN([LOSS OF FUNCTIONALITY (curl lacks gnutls support)])
+  fi
+fi
+
+if test $HAVE_LIBCURL = 1; then
+  AC_CHECK_LIB(curl, curl_multi_perform, curl_ok=yes, curl_ok=no)
+fi
+if test $HAVE_LIBCURL = 1; then
+  AC_CHECK_DECL(CURLOPT_CONNECT_TO, curl_ok=yes, curl_ok=no,
+    [#include <curl/curl.h>])
+fi
+if test $HAVE_LIBCURL = 1; then
+  # If curl supports runtime selection of the TLS module we will need
+  # to use curl_global_sslset to pick GNUTLS
+  AC_CHECK_FUNCS(curl_global_sslset)
+fi
+AC_SUBST(HAVE_LIBCURL)
+
+#--------------------------------------------------------------------
+# Check dependencies of NSURLSession API
+#--------------------------------------------------------------------
+nsurlsessiondefault=no
+if test "$OBJC_RUNTIME_LIB" = "ng" -a $HAVE_BLOCKS = 1 -a $HAVE_LIBDISPATCH = 1 -a $HAVE_LIBCURL = 1; then
+  nsurlsessiondefault=yes
+fi
+
+GS_HAVE_NSURLSESSION=0
+AC_ARG_ENABLE(nsurlsession,
+  [  --disable-nsurlsession  		Disable support for NSURLSession],,
+  enable_nsurlsession=$nsurlsessiondefault)
+if test $enable_nsurlsession = yes; then
+  if test "$OBJC_RUNTIME_LIB" != "ng"; then
+    AC_MSG_ERROR([Missing ng runtime (needed for NSURLSession). To build without NSURLSession support, please run configure again with the --disable-nsurlsession option.])
+  fi
+  if test $HAVE_BLOCKS = 0; then
+    AC_MSG_ERROR([Missing blocks support (needed for NSURLSession).  To build without NSURLSession support, please run configure again with the --disable-nsurlsession option.])
+  fi
+  if test $HAVE_LIBDISPATCH = 0; then
+    AC_MSG_ERROR([Missing libdispatch (needed for NSURLSession).  To build without NSURLSession support, please run configure again with the --disable-nsurlsession option.])
+   fi
+  # Check for dispatch_queue_create_with_target needed for NSURLSession
+  AC_CHECK_FUNCS(dispatch_queue_create_with_target)
+  if test $HAVE_LIBCURL = 0; then
+    AC_MSG_ERROR([Missing libcurl (needed for NSURLSession). To build without NSURLSession support, please run configure again with the --disable-nsurlsession option.])
+  fi
+  GS_HAVE_NSURLSESSION=1
+fi
+AC_SUBST(GS_HAVE_NSURLSESSION)
 
 #--------------------------------------------------------------------
 # Check GMP for NSDecimal

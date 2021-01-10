@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
 
    <title>NSObject class reference</title>
    $Date$ $Revision$
@@ -53,6 +53,10 @@
 #include <locale.h>
 #endif
 
+#ifdef HAVE_MALLOC_H
+#include	<malloc.h>
+#endif
+
 #import "GSPThread.h"
 
 #if	defined(HAVE_SYS_SIGNAL_H)
@@ -81,7 +85,7 @@
 
 
 /* platforms which do not support weak */
-#if (__GNUC__ == 3) && defined (__WIN32)
+#if defined (__WIN32)
 #define WEAK_ATTRIBUTE
 #undef SUPPORT_WEAK
 #else
@@ -1117,9 +1121,12 @@ static id gs_weak_load(id obj)
 
 + (void) _atExit
 {
+  NSMapTable	*m = nil;
   pthread_mutex_lock(&allocationLock);
-  DESTROY(zombieMap);
+  m = zombieMap;
+  zombieMap = nil;
   pthread_mutex_unlock(&allocationLock);
+  DESTROY(m);
 }
 
 /**
@@ -2580,12 +2587,101 @@ GSPrivateMemorySize(NSObject *self, NSHashTable *exclude)
 }
 
 @implementation	NSObject (MemoryFootprint)
+
++ (NSUInteger) contentSizeOf: (NSObject*)obj
+		   excluding: (NSHashTable*)exclude
+{
+  Class		cls = object_getClass(obj);
+  NSUInteger	size = 0;
+
+  while (cls != Nil)
+    {
+      unsigned	count;
+      Ivar	*vars;
+
+      if (0 != (vars = class_copyIvarList(cls, &count)))
+	{
+	  while (count-- > 0)
+	    {
+	      const char	*type = ivar_getTypeEncoding(vars[count]);
+
+	      type = GSSkipTypeQualifierAndLayoutInfo(type);
+	      if ('@' == *type)
+		{
+		  NSObject	*content = object_getIvar(obj, vars[count]);
+	    
+		  if (content != nil)
+		    {
+		      size += [content sizeInBytesExcluding: exclude];
+		    }
+		}
+	    }
+	  free(vars);
+	}
+      cls = class_getSuperclass(cls);
+    }
+  return size;
+}
++ (NSUInteger) sizeInBytes
+{
+  return 0;
+}
 + (NSUInteger) sizeInBytesExcluding: (NSHashTable*)exclude
 {
   return 0;
 }
++ (NSUInteger) sizeOfContentExcluding: (NSHashTable*)exclude
+{
+  return 0;
+}
+- (NSUInteger) sizeInBytes
+{
+  NSUInteger	bytes;
+  NSHashTable	*exclude;
+ 
+  exclude = NSCreateHashTable(NSNonOwnedPointerHashCallBacks, 0);
+  bytes = [self sizeInBytesExcluding: exclude];
+  NSFreeHashTable(exclude);
+  return bytes;
+}
 - (NSUInteger) sizeInBytesExcluding: (NSHashTable*)exclude
 {
-  return GSPrivateMemorySize(self, exclude);
+  if (0 == NSHashGet(exclude, self))
+    {
+      NSUInteger        size = [self sizeOfInstance];
+
+      NSHashInsert(exclude, self);
+      if (size > 0)
+        {
+	  size += [self sizeOfContentExcluding: exclude];
+        }
+      return size;
+    }
+  return 0;
 }
+- (NSUInteger) sizeOfContentExcluding: (NSHashTable*)exclude
+{
+  return 0;
+}
+- (NSUInteger) sizeOfInstance
+{
+  NSUInteger    size;
+
+#if	GS_SIZEOF_VOIDP > 4
+  NSUInteger    u = (NSUInteger)self;
+  if (u & 0x07)
+    {
+      return 0;	// Small object has no size
+    }
+#endif
+
+#if 	HAVE_MALLOC_USABLE_SIZE
+  size = malloc_usable_size((void*)self - sizeof(intptr_t));
+#else
+  size = class_getInstanceSize(object_getClass(self));
+#endif
+
+  return size;
+}
+
 @end

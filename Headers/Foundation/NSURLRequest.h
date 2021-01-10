@@ -14,12 +14,12 @@
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   Library General Public License for more details.
+   Lesser General Public License for more details.
    
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-   Boston, MA 02111 USA.
+   Boston, MA 02110 USA.
    */ 
 
 #ifndef __NSURLRequest_h_GNUSTEP_BASE_INCLUDE
@@ -99,15 +99,15 @@ typedef NSUInteger NSURLRequestCachePolicy;
  * and with the default cache policy (NSURLRequestUseProtocolCachePolicy)
  * and a sixty second timeout.
  */
-+ (id) requestWithURL: (NSURL *)URL;
++ (instancetype) requestWithURL: (NSURL *)URL;
 
 /**
  * Returns an autoreleased instance initialised with the specified URL,
  * cachePolicy, and timeoutInterval.
  */
-+ (id) requestWithURL: (NSURL *)URL
-	  cachePolicy: (NSURLRequestCachePolicy)cachePolicy
-      timeoutInterval: (NSTimeInterval)timeoutInterval;
++ (instancetype) requestWithURL: (NSURL *)URL
+                    cachePolicy: (NSURLRequestCachePolicy)cachePolicy
+                timeoutInterval: (NSTimeInterval)timeoutInterval;
 
 /**
  * Returns the cache policy associated with the receiver.
@@ -119,15 +119,15 @@ typedef NSUInteger NSURLRequestCachePolicy;
  * and with the default cache policy (NSURLRequestUseProtocolCachePolicy)
  * and a sixty second timeout.
  */
-- (id) initWithURL: (NSURL *)URL;
+- (instancetype) initWithURL: (NSURL *)URL;
 
 /**
  * Initialises the receiver with the specified URL,
  * cachePolicy, and timeoutInterval.
  */
-- (id) initWithURL: (NSURL *)URL
-       cachePolicy: (NSURLRequestCachePolicy)cachePolicy
-   timeoutInterval: (NSTimeInterval)timeoutInterval;
+- (instancetype) initWithURL: (NSURL *)URL
+                 cachePolicy: (NSURLRequestCachePolicy)cachePolicy
+             timeoutInterval: (NSTimeInterval)timeoutInterval;
 
 /**
  * Returns the main document URL for the receiver.<br />
@@ -281,6 +281,25 @@ typedef NSUInteger NSURLRequestCachePolicy;
  */
 - (void) setValue: (NSString *)value forHTTPHeaderField: (NSString *)field;
 
+@end
+
+@protocol GSLogDelegate;
+@interface NSMutableURLRequest (GNUstep)
+
+/** Sets a flag to turn on low level debug logging for this request and the
+ * corresponding response.  The previous vaue of the setting is returned.
+ */
+- (int) setDebug: (int)d;
+
+/** Sets a delegate object to override logging of low level I/O of the
+ * request as it is sent and the corresponding response as it arrives.<br />
+ * The delegate object is not retained, so it is the responsibility of the
+ * caller to ensure that it persists until all I/O has completed.<br />
+ * This has no effect unless debug is turned on, but if debug is turned on
+ * it permits the delegate to override the default behavior of writing the
+ * data to stderr.
+ */
+- (id<GSLogDelegate>) setDebugLogDelegate: (id<GSLogDelegate>)d;
 @end
 
 #if	defined(__cplusplus)
